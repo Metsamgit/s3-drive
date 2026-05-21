@@ -51,10 +51,10 @@ function buildLayout(): {
 
   const bucketSelect = el("select", { id: "bucket-select" }) as HTMLSelectElement;
   const addBucketBtn = el("button", { title: "Ajouter un bucket par nom" }, "+ Bucket") as HTMLButtonElement;
-  const refreshBtn = el("button", { class: "icon", title: "Rafraîchir" }, "🔄") as HTMLButtonElement;
+  const refreshBtn = el("button", { class: "icon", title: "Rafraîchir" }, "Recharger") as HTMLButtonElement;
   const uploadBtn = el("button", { class: "primary", title: "Uploader des fichiers" }, "+ Upload") as HTMLButtonElement;
   const newFolderBtn = el("button", { title: "Nouveau dossier" }, "+ Dossier") as HTMLButtonElement;
-  const settingsBtn = el("button", { class: "icon", title: "Identifiants AWS" }, "⚙") as HTMLButtonElement;
+  const settingsBtn = el("button", { class: "icon", title: "Identifiants AWS" }, "Config") as HTMLButtonElement;
 
   const header = el("header", {},
     el("h1", {}, "S3 Drive"),
@@ -155,7 +155,7 @@ async function loadBucketList(): Promise<void> {
       ui.bucketSelect.appendChild(el("option", { value: state.bucket }, state.bucket));
       ui.bucketSelect.value = state.bucket;
     } else {
-      ui.bucketSelect.appendChild(el("option", { value: "" }, "(saisir un bucket →)"));
+      ui.bucketSelect.appendChild(el("option", { value: "" }, "(aucun bucket configuré)"));
     }
     toast(
       "ListBuckets non supporté par S3 en navigateur (CORS service-level). " +
@@ -190,9 +190,27 @@ async function promptForBucket(): Promise<void> {
   await refresh();
 }
 
-async function connect(creds: Credentials, remember: boolean): Promise<void> {
+async function connect(
+  creds: Credentials,
+  bucket: string | null,
+  remember: boolean,
+): Promise<void> {
   setupClient(creds);
-  await loadBucketList();
+  if (bucket) {
+    const ok = await bucketAccessible(bucket);
+    if (!ok) {
+      throw new Error(
+        `Bucket "${bucket}" inaccessible. Vérifie les credentials, le nom et la config CORS.`,
+      );
+    }
+    state.bucket = bucket;
+    saveBucket(bucket);
+    clear(ui.bucketSelect);
+    ui.bucketSelect.appendChild(el("option", { value: bucket }, bucket));
+    ui.bucketSelect.value = bucket;
+  } else {
+    await loadBucketList();
+  }
   saveCredentials(creds, remember);
   state.prefix = "";
   await refresh();
@@ -209,8 +227,8 @@ ui.refreshBtn.addEventListener("click", () => void refresh());
 ui.addBucketBtn.addEventListener("click", () => void promptForBucket());
 
 ui.settingsBtn.addEventListener("click", () => {
-  openCredentialsModal(async (creds, remember) => {
-    await connect(creds, remember);
+  openCredentialsModal(async (creds, bucket, remember) => {
+    await connect(creds, bucket, remember);
     toast("Identifiants mis à jour.", "success");
   });
 });
@@ -346,7 +364,7 @@ async function boot(): Promise<void> {
   const existing = loadCredentials();
   if (existing) {
     try {
-      await connect(existing, true);
+      await connect(existing, loadBucket(), true);
       return;
     } catch {
       clearCredentials();

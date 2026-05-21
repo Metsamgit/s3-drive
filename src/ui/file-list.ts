@@ -29,15 +29,15 @@ function formatDate(d: Date): string {
 
 function iconFor(name: string): string {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  if (["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"].includes(ext)) return "🖼";
-  if (ext === "pdf") return "📄";
-  if (["doc", "docx", "txt", "md", "rtf"].includes(ext)) return "📝";
-  if (["xls", "xlsx", "csv"].includes(ext)) return "📊";
-  if (["zip", "tar", "gz", "rar", "7z"].includes(ext)) return "🗜";
-  if (["mp4", "mov", "avi", "mkv", "webm"].includes(ext)) return "🎬";
-  if (["mp3", "wav", "ogg", "flac"].includes(ext)) return "🎵";
-  if (["js", "ts", "py", "go", "rs", "java", "c", "cpp", "h", "json", "html", "css"].includes(ext)) return "💻";
-  return "📦";
+  if (["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"].includes(ext)) return "IMG";
+  if (ext === "pdf") return "PDF";
+  if (["doc", "docx", "txt", "md", "rtf"].includes(ext)) return "DOC";
+  if (["xls", "xlsx", "csv"].includes(ext)) return "XLS";
+  if (["zip", "tar", "gz", "rar", "7z"].includes(ext)) return "ZIP";
+  if (["mp4", "mov", "avi", "mkv", "webm"].includes(ext)) return "VID";
+  if (["mp3", "wav", "ogg", "flac"].includes(ext)) return "MP3";
+  if (["js", "ts", "py", "go", "rs", "java", "c", "cpp", "h", "json", "html", "css"].includes(ext)) return "COD";
+  return "FIL";
 }
 
 function folderName(prefix: string, parent: string): string {
@@ -68,7 +68,7 @@ export function renderFileList(
     const row = el("tr",
       { onclick: () => handlers.onOpenFolder(folder) },
       el("td", { class: "name" },
-        el("span", { class: "icon" }, "📁"),
+        el("span", { class: "icon" }, "DIR"),
         name + "/",
       ),
       el("td", {}, "—"),
@@ -86,7 +86,7 @@ export function renderFileList(
             e.stopPropagation();
             handlers.onPreview(file);
           },
-        }, "👁")
+        }, "Voir")
       : null;
 
     const downloadBtn = el("button", {
@@ -95,7 +95,7 @@ export function renderFileList(
         e.stopPropagation();
         handlers.onDownload(file);
       },
-    }, "⬇");
+    }, "DL");
 
     const deleteBtn = el("button", {
       class: "icon", title: "Supprimer",
@@ -103,7 +103,7 @@ export function renderFileList(
         e.stopPropagation();
         handlers.onDelete(file);
       },
-    }, "🗑");
+    }, "Suppr");
 
     const nameCell = el("td", {
       class: "name",

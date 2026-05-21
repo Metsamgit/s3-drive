@@ -9,7 +9,7 @@ export function renderBreadcrumbs(
 
   const rootCrumb = el("span",
     { class: prefix === "" ? "crumb current" : "crumb", onclick: () => prefix !== "" && onNavigate("") },
-    "🏠 racine",
+    "racine",
   );
   container.appendChild(rootCrumb);
 

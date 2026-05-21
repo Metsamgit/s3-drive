@@ -1,4 +1,4 @@
-import { type Credentials, isRemembering, loadCredentials } from "../storage.ts";
+import { type Credentials, isRemembering, loadCredentials, loadBucket } from "../storage.ts";
 import { el } from "./dom.ts";
 
 const AWS_REGIONS = [
@@ -8,9 +8,10 @@ const AWS_REGIONS = [
 ];
 
 export function openCredentialsModal(
-  onSubmit: (creds: Credentials, remember: boolean) => Promise<void>,
+  onSubmit: (creds: Credentials, bucket: string | null, remember: boolean) => Promise<void>,
 ): void {
   const existing = loadCredentials();
+  const existingBucket = loadBucket();
   const remembered = isRemembering();
 
   const akInput = el("input", { id: "ak", type: "text", autocomplete: "off", placeholder: "AKIA..." });
@@ -18,6 +19,10 @@ export function openCredentialsModal(
   const regionSelect = el("select", { id: "region" },
     ...AWS_REGIONS.map((r) => el("option", { value: r }, r)),
   );
+  const bucketInput = el("input", {
+    id: "bucket", type: "text", autocomplete: "off",
+    placeholder: "nom-du-bucket (sera vérifié à la connexion)",
+  });
   const tokenInput = el("input", {
     id: "token", type: "password", autocomplete: "off",
     placeholder: "Pour les credentials temporaires STS",
@@ -33,6 +38,7 @@ export function openCredentialsModal(
     regionSelect.value = existing.region;
     tokenInput.value = existing.sessionToken ?? "";
   }
+  if (existingBucket) bucketInput.value = existingBucket;
   rememberInput.checked = remembered;
   if (!existing) cancelBtn.style.display = "none";
 
@@ -51,6 +57,10 @@ export function openCredentialsModal(
     el("div", { class: "field" },
       el("label", { for: "region" }, "Région"),
       regionSelect,
+    ),
+    el("div", { class: "field" },
+      el("label", { for: "bucket" }, "Bucket S3"),
+      bucketInput,
     ),
     el("div", { class: "field" },
       el("label", { for: "token" }, "Session Token (optionnel)"),
@@ -82,6 +92,7 @@ export function openCredentialsModal(
     const sk = skInput.value.trim();
     const region = regionSelect.value;
     const token = tokenInput.value.trim();
+    const bucket = bucketInput.value.trim();
 
     if (!ak || !sk || !region) {
       showError("Access Key, Secret et région sont requis.");
@@ -98,7 +109,7 @@ export function openCredentialsModal(
         region,
         sessionToken: token || undefined,
       };
-      await onSubmit(creds, rememberInput.checked);
+      await onSubmit(creds, bucket || null, rememberInput.checked);
       close();
     } catch (err) {
       submitBtn.disabled = false;

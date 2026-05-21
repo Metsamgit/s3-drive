@@ -102,15 +102,17 @@ button.danger {
 }
 
 button.icon {
-  padding: 4px 8px;
+  padding: 4px 10px;
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   color: var(--muted);
+  font-size: 12px;
 }
 
 button.icon:hover {
   color: var(--text);
-  background: var(--border);
+  background: var(--panel-2);
+  border-color: var(--border);
 }
 
 main {
@@ -198,9 +200,17 @@ table.files td.name {
 
 table.files td.name .icon {
   display: inline-block;
-  width: 18px;
-  margin-right: 8px;
+  width: 36px;
+  margin-right: 10px;
   text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  background: var(--panel-2);
+  color: var(--muted);
+  padding: 2px 4px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
 }
 
 .empty {
