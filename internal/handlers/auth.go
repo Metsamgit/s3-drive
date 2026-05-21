@@ -80,13 +80,20 @@ func (h *Handler) PostLogin(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// Use a single generic message for everything credentials-related so
+	// an attacker can't tell from the error whether their key/secret has
+	// the right shape, the wrong region, or simply doesn't exist on AWS.
+	// The bucket message stays distinct because it only fires *after*
+	// the credentials are known to be valid — no useful signal to leak.
+	const genericAuthErr = "Identifiants, région ou compte refusés."
+
 	if !validation.AWSAccessKey(ak) || !validation.AWSSecretKey(sk) {
-		renderErr("Identifiants invalides.")
+		renderErr(genericAuthErr)
 		return
 	}
 	cleanRegion, err := validation.Region(region)
 	if err != nil {
-		renderErr("Région invalide.")
+		renderErr(genericAuthErr)
 		return
 	}
 	var cleanBucket string
@@ -117,7 +124,7 @@ func (h *Handler) PostLogin(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		if _, err := cli.ListBuckets(probeCtx); err != nil {
-			renderErr("Identifiants AWS refusés.")
+			renderErr(genericAuthErr)
 			return
 		}
 	}

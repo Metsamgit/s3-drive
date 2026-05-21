@@ -152,3 +152,21 @@ La v1 de ce projet était une **SPA TypeScript pure** (Vite + AWS SDK v3 navigat
 Cette v2 (Go SSR) est faite pour résister à un audit code/sécurité : tout passe par le backend, ce qui ferme la limitation CORS et permet de raisonner plus simplement sur la surface d'attaque.
 
 L'historique git contient les deux versions.
+
+## Pentest (audit interne)
+
+Audit black-box mené depuis l'extérieur (curl) après le déploiement. Tous
+les vecteurs OWASP testés ont passé : auth bypass, CSRF, path traversal
+(brut/encodé/double-encodé), filename injection (multipart),
+header smuggling, method tampering (PUT/TRACE/OPTIONS),
+`X-HTTP-Method-Override`, CL+TE smuggling, oversize headers/body,
+open redirect, XSS reflection, session fixation, et timing attack sur
+la comparaison CSRF.
+
+Trois findings de niveau "info" ont été corrigés dans le même round :
+
+- **M1** — `Server: nginx/1.30.0` exposé. Fix : `server_tokens off;` dans nginx.conf.
+- **M2** — Le message d'erreur de login distinguait "shape invalide" de "rejeté par AWS", permettant à un attaquant de savoir si son Access Key avait la bonne forme. Fix : message générique unique côté handler login.
+- **M3** — Endpoint `/healthz` accessible depuis Internet. Fix : restriction nginx à `127.0.0.1` et `::1`.
+
+Aucun finding high/critical.
