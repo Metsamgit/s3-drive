@@ -1,0 +1,36 @@
+{{define "file_list"}}
+{{if and (not .Folders) (not .Files)}}
+<p class="empty">Dossier vide.</p>
+{{else}}
+<table class="files">
+  <thead>
+    <tr><th>Nom</th><th>Taille</th><th>Modifié</th><th></th></tr>
+  </thead>
+  <tbody>
+    {{range .Folders}}
+    <tr>
+      <td><span class="badge">DIR</span> <a href="/files?prefix={{.Path}}">{{.Name}}/</a></td>
+      <td>—</td>
+      <td>—</td>
+      <td></td>
+    </tr>
+    {{end}}
+    {{range .Files}}
+    <tr>
+      <td><span class="badge">{{.Kind}}</span> <a href="/download?key={{.Key | urlquery}}">{{.Name}}</a></td>
+      <td>{{.Size}}</td>
+      <td>{{.Modified}}</td>
+      <td>
+        <form method="post" action="/delete" class="inline" hx-post="/delete" hx-confirm="Supprimer {{.Name}} ?" hx-target="#file-list" hx-swap="outerHTML">
+          <input type="hidden" name="key" value="{{.Key}}">
+          <input type="hidden" name="prefix" value="{{$.Prefix}}">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <button type="submit" class="danger">Suppr</button>
+        </form>
+      </td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+{{end}}
+{{end}}

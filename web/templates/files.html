@@ -1,0 +1,66 @@
+{{define "title"}}{{if .Bucket}}{{.Bucket}}{{else}}S3 Drive{{end}}{{end}}
+{{define "content"}}
+<header class="appbar">
+  <h1>S3 Drive</h1>
+
+  <form method="post" action="/bucket" class="bucket-form">
+    <label for="bucket-input">Bucket</label>
+    <input id="bucket-input" name="bucket" type="text" value="{{.Bucket}}" minlength="3" maxlength="63" required autocomplete="off">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button type="submit">Charger</button>
+  </form>
+
+  {{if .CanList}}
+  <details class="bucket-list">
+    <summary>Mes buckets</summary>
+    <ul>
+      {{range .Buckets}}<li><form method="post" action="/bucket"><input type="hidden" name="bucket" value="{{.Name}}"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="linklike">{{.Name}}</button></form></li>{{end}}
+    </ul>
+  </details>
+  {{end}}
+
+  <span class="grow"></span>
+
+  <form method="post" action="/logout" class="logout">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button type="submit" class="ghost">Déconnexion</button>
+  </form>
+</header>
+
+<main>
+  {{if .Bucket}}
+  <nav class="breadcrumbs" aria-label="chemin">
+    <a href="/files">racine</a>
+    {{range .Crumbs}} / <a href="/files?prefix={{.Path}}">{{.Name}}</a>{{end}}
+  </nav>
+
+  <section class="actions">
+    <form method="post" action="/upload" enctype="multipart/form-data" class="upload">
+      <input type="hidden" name="prefix" value="{{.Prefix}}">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input id="file-input" type="file" name="file" multiple required>
+      <button type="submit" class="primary">Uploader</button>
+    </form>
+
+    <form method="post" action="/folder" class="folder">
+      <input type="hidden" name="prefix" value="{{.Prefix}}">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input name="name" type="text" placeholder="nouveau dossier" required minlength="1" maxlength="63" autocomplete="off">
+      <button type="submit">Créer</button>
+    </form>
+  </section>
+
+  {{if .Flash}}<div class="alert">{{.Flash}}</div>{{end}}
+  {{if .Error}}<div class="alert error">{{.Error}}</div>{{end}}
+
+  <div id="file-list" hx-get="/files/list?prefix={{.Prefix}}" hx-trigger="refresh from:body" hx-target="this">
+    {{template "file_list" .}}
+  </div>
+
+  {{else}}
+  <div class="empty">
+    Saisis un nom de bucket pour commencer.
+  </div>
+  {{end}}
+</main>
+{{end}}

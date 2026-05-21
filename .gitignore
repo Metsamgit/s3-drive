@@ -1,9 +1,17 @@
-node_modules
-dist
-dist-ssr
-*.local
+# Binaries
+/s3-drive
+/s3-drive-linux
+*.exe
+*.out
+
+# Local screenshots
+/screenshot-*.png
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Local env overrides
 .env
 .env.local
-.DS_Store
-.vscode
-*.tsbuildinfo

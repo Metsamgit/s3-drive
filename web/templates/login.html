@@ -1,0 +1,34 @@
+{{define "title"}}Connexion · S3 Drive{{end}}
+{{define "content"}}
+<main class="login-wrap">
+  <form method="post" action="/login" class="card" autocomplete="off">
+    <h1>S3 Drive</h1>
+    <p class="muted">
+      Vos identifiants AWS restent côté serveur, chiffrés en mémoire pour
+      la durée de la session. Ils ne sont jamais écrits sur disque ni
+      transmis à un tiers.
+    </p>
+
+    {{if .Error}}
+    <div class="alert" role="alert">{{.Error}}</div>
+    {{end}}
+
+    <label for="access_key">Access Key ID</label>
+    <input id="access_key" name="access_key" type="text" required minlength="16" maxlength="128" autocomplete="off" spellcheck="false">
+
+    <label for="secret_key">Secret Access Key</label>
+    <input id="secret_key" name="secret_key" type="password" required minlength="16" maxlength="256" autocomplete="off">
+
+    <label for="region">Région</label>
+    <select id="region" name="region" required>
+      {{range .Regions}}<option value="{{.}}"{{if eq . $.SelectedRegion}} selected{{end}}>{{.}}</option>{{end}}
+    </select>
+
+    <label for="bucket">Bucket (optionnel)</label>
+    <input id="bucket" name="bucket" type="text" minlength="3" maxlength="63" autocomplete="off" placeholder="laisser vide pour choisir après connexion">
+
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button type="submit" class="primary">Se connecter</button>
+  </form>
+</main>
+{{end}}

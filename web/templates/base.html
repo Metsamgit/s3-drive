@@ -1,0 +1,13 @@
+{{define "base"}}<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{block "title" .}}S3 Drive{{end}}</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+{{block "content" .}}{{end}}
+</body>
+</html>{{end}}

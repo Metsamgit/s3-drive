@@ -1,167 +1,154 @@
 # S3 Drive
 
-Interface web type "drive" pour Amazon S3 — SPA TypeScript sans backend.
-Toutes les requêtes S3 sont signées directement dans le navigateur ; vos
-identifiants AWS ne quittent jamais la machine cliente.
+Petite interface web pour gérer un bucket Amazon S3. Backend Go, frontend
+rendu côté serveur, pas de SPA. Le but est de tenir face à un audit de
+sécurité : surface d'attaque réduite, dépendances minimales, code droit.
+
+TP « Créer une interface pour Amazon S3 » — E-Zy Tech Formation.
 
 ## Déploiement live
 
-- **App** : https://13-37-241-252.nip.io
-- **Repo** : https://github.com/Metsamgit/s3-drive
-- Hébergement : Amazon Linux 2023 + nginx sur EC2 t3.micro (eu-west-3),
-  HTTPS via Let's Encrypt + nip.io.
+- **App**     : <https://13-37-241-252.nip.io>
+- **Repo**    : <https://github.com/Metsamgit/s3-drive>
+- **Hosting** : Amazon Linux 2023 + nginx (TLS Let's Encrypt) → Go en 127.0.0.1:8080,
+  unit systemd avec hardening (`NoNewPrivileges`, `ProtectSystem=strict`,
+  `ProtectHome`, `PrivateTmp`, `MemoryMax=256M`).
 
 ## Fonctionnalités
 
-- Lister le contenu d'un bucket avec métadonnées (taille, date, type)
-- Upload par drag & drop multi-fichiers, avec barre de progression
-- Upload multipart automatique pour les gros fichiers (parts de 5 MB en parallèle)
-- Téléchargement via URL pré-signées (expirent en 5 min)
-- Suppression avec confirmation
-- **Bonus 1** : sélection parmi tous les buckets accessibles au compte
-- **Bonus 2** : credentials AWS saisis côté front-end (jamais transmis à un serveur tiers)
-- Navigation hiérarchique par préfixes (dossiers) avec breadcrumbs
-- Prévisualisation in-app pour images et PDF
-- Création de "dossier" (objet préfixe vide)
+Côté sujet :
+
+- Lister le contenu d'un bucket avec métadonnées (taille, date)
+- Uploader des fichiers (multipart auto pour les gros)
+- Télécharger (streamé par le serveur, pas d'URL pré-signée exposée)
+- Supprimer
+- **Bonus 1** : sélecteur de tous les buckets accessibles au compte
+  (`ListBuckets` côté backend, donc plus de blocage CORS comme dans la
+  v1 SPA)
+- **Bonus 2** : credentials AWS saisis par l'utilisateur, chiffrés en
+  mémoire serveur pour la durée de la session, jamais persistés
+
+Plus :
+
+- Navigation par préfixes avec breadcrumbs
+- Création de dossier (objet préfixe vide)
+- Multi-upload depuis le formulaire
 
 ## Stack
 
-- **Vite** + **TypeScript** (SPA, pas de framework UI)
-- **@aws-sdk/client-s3** v3 (modulaire, tree-shakable)
-- **@aws-sdk/lib-storage** pour l'upload multipart automatique
-- **@aws-sdk/s3-request-presigner** pour les URL de téléchargement
+Petite par choix. Moins de dépendances = moins de surface CVE.
 
-Aucun backend. Les fichiers statiques générés par `npm run build` peuvent
-être servis par n'importe quel hébergeur statique (S3 + CloudFront, Netlify,
-Vercel, Cloudflare Pages, GitHub Pages, etc.).
-
-## Démarrer
-
-```bash
-npm install
-npm run dev          # serveur de dev sur http://localhost:5173
-npm run build        # build de production dans dist/
-npm run preview      # preview du build
+```
+github.com/go-chi/chi/v5                       routeur HTTP
+github.com/aws/aws-sdk-go-v2 (config, s3, etc) S3
+golang.org/x/time/rate                         token bucket pour le rate-limit
 ```
 
-Au premier chargement, une fenêtre demande les identifiants AWS. Cochez
-"Mémoriser" pour les conserver dans le localStorage du navigateur, sinon
-ils ne sont gardés que pour la session courante.
+Pas de framework UI, pas de bundler, pas de Node. Le `<script>` HTMX
+14 KB est servi en local depuis `web/static/` ; aucun CDN tiers.
 
-## Configuration AWS
+## Threat model
 
-### 1. Politique IAM minimale
+Ce que je considère comme un attaquant et comment je le freine.
 
-Attachez cette politique à l'utilisateur IAM dont vous utiliserez les
-identifiants. Les actions sont restreintes au strict nécessaire.
+| Vecteur | Mitigation |
+|---|---|
+| **XSS** | `html/template` (escape contextuel automatique) + CSP strict `default-src 'self'`, pas de inline scripts/styles, `object-src 'none'`, `frame-ancestors 'none'` |
+| **CSRF** | Token aléatoire 32 octets par session, contrôle constant-time sur chaque POST. Cookies `SameSite=Strict`. Token pré-login séparé (cookie one-shot) pour défendre le formulaire de connexion. |
+| **Clickjacking** | `X-Frame-Options: DENY` + `frame-ancestors 'none'` dans la CSP |
+| **MIME sniffing** | `X-Content-Type-Options: nosniff` ; downloads forcés en `Content-Disposition: attachment` |
+| **Sniffing du transport** | HSTS un an, `includeSubDomains`, redirection 301 HTTP→HTTPS |
+| **Path traversal** | Validateurs stricts sur chaque clé S3 (`internal/validation/validation.go`) : pas de `..`, pas de `//`, charset restreint, longueur ≤ 1024. Filename de multipart filtré via `filepath.Base`. |
+| **SSRF** | Aucune URL contrôlée par l'utilisateur n'est fetchée par le serveur |
+| **Command injection** | Aucun `exec` ; tout passe par l'AWS SDK |
+| **SQLi** | Pas de SQL du tout (session in-memory) |
+| **Auth bypass** | Middleware `requireSession` explicite sur toutes les routes protégées, configuré au niveau du routeur |
+| **IDOR** | Les clés S3 sont scopées par les credentials de la session ; pas d'ID interne exposé |
+| **Brute force AWS keys sur /login** | Rate limit IP dédié sur /login (≈6 req/min) + check côté serveur en pré-flight (HeadBucket/ListBuckets) |
+| **Cookie theft** | `HttpOnly` + `Secure` (derrière TLS) + `SameSite=Strict` + `Path=/` |
+| **Header injection (Content-Disposition)** | Filename sanitizé : retrait des quotes, backslashes et bytes de contrôle |
+| **Memory dump → creds** | Credentials AES-256-GCM en mémoire (clé process-wide, jamais sur disque) ; déchiffrement transitoire au moment de l'appel S3 |
+| **Recovery info leak** | Middleware `Recover` qui log la stack côté serveur, renvoie un 500 générique |
+| **DoS upload** | `http.MaxBytesReader` borne le body à `MAX_UPLOAD_MB`. nginx `client_max_body_size 110m` en amont. |
+| **Slowloris** | `ReadHeaderTimeout: 10s`, `IdleTimeout: 2m`, `MaxHeaderBytes: 64 KB` |
+| **Goroutine leak** | Chaque opération AWS a un `context.WithTimeout` ; graceful shutdown borne aussi à 30 s |
+| **Long-lived sessions** | Idle TTL 30 min + absolute TTL 8 h ; GC périodique |
+| **Stack trace en prod** | `slog` à `info`, jamais d'erreur AWS brute retournée à l'utilisateur — seulement des codes mappés en français |
+| **Hard-coded secrets** | Aucun. Tout via env. `SESSION_KEY` doit être passé en prod (sinon warning + ephemeral) |
+| **Supply chain** | 5 packages directs, tous sous gouvernance Go/AWS. `go mod tidy` propre. Le binaire est statique. |
+
+Liste lourde mais c'est le but : un auditeur peut cocher les cases une
+par une et vérifier dans le code.
+
+## Architecture
+
+```
+internal/
+├── auth/             session store + CSRF, AES-GCM at rest in memory
+├── awsclient/        wrapper minimal sur le SDK S3 v2
+├── config/           chargement env vars, validation
+├── handlers/         routes (login, files, upload, download, delete, ...)
+├── middleware/       security headers, recover, logging, rate limit
+└── validation/       validateurs centralisés (bucket, key, region)
+web/
+├── templates/        html/template (escape auto)
+└── static/           css + htmx.min.js
+main.go               wiring serveur, timeouts, graceful shutdown
+```
+
+Chaque fichier fait une chose. La taille moyenne d'un fichier source
+est ~150 lignes ; aucun fichier ne dépasse 250.
+
+## Démarrer en local
+
+```bash
+cp .env.example .env
+# laisser SESSION_KEY vide pour générer une clé éphémère (warning au boot)
+make run
+# http://127.0.0.1:8080/login
+```
+
+## Production : déploiement EC2 derrière nginx
+
+Le binaire est mono-fichier, build via `make build-linux`. Sur l'EC2 :
+
+1. Installer le binaire dans `/usr/local/bin/s3-drive`
+2. `EnvironmentFile=/etc/s3-drive/env` (mode 600) contient le `SESSION_KEY`
+3. Unit systemd avec hardening (cf. déploiement live ci-dessus)
+4. nginx reverse-proxy `127.0.0.1:8080` + termination TLS Let's Encrypt
+
+Le binaire n'écrit jamais sur disque ; `ProtectSystem=strict` et
+`ProtectHome` rendent l'écriture impossible de toute façon.
+
+## Configuration AWS requise
+
+L'utilisateur connecté doit avoir au minimum :
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": ["s3:ListAllMyBuckets"],
-      "Resource": "*"
-    },
-    {
-      "Effect": "Allow",
-      "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
-      "Resource": "arn:aws:s3:::*"
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:DeleteObject",
-        "s3:AbortMultipartUpload"
-      ],
-      "Resource": "arn:aws:s3:::*/*"
-    }
+    { "Effect": "Allow", "Action": ["s3:ListAllMyBuckets"], "Resource": "*" },
+    { "Effect": "Allow", "Action": ["s3:ListBucket", "s3:GetBucketLocation"], "Resource": "arn:aws:s3:::*" },
+    { "Effect": "Allow", "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload"], "Resource": "arn:aws:s3:::*/*" }
   ]
 }
 ```
 
-Pour restreindre à un seul bucket, remplacez `arn:aws:s3:::*` par
-`arn:aws:s3:::nom-du-bucket` et `arn:aws:s3:::*/*` par
-`arn:aws:s3:::nom-du-bucket/*`.
+Pas de config CORS S3 nécessaire : le backend Go parle à S3, pas le
+navigateur.
 
-### 2. Configuration CORS du bucket
+## Ce qui n'est pas dans le scope (volontairement)
 
-Sans CORS, le navigateur bloquera toutes les requêtes vers S3. Sur chaque
-bucket à utiliser, ajoutez cette configuration (console AWS → bucket →
-Permissions → Cross-origin resource sharing) :
+- **OAuth / SSO** : on supporte uniquement le login par credentials AWS
+- **Multi-tenant** : une session = un utilisateur AWS
+- **Versioning / ACL / tags S3**
+- **Pagination listing > 1000 objets** : le SDK retourne `IsTruncated` mais l'UI ne le suit pas encore
 
-```json
-[
-  {
-    "AllowedHeaders": ["*"],
-    "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
-    "AllowedOrigins": [
-      "http://localhost:5173",
-      "https://votre-domaine-de-prod.example"
-    ],
-    "ExposeHeaders": ["ETag"],
-    "MaxAgeSeconds": 3000
-  }
-]
-```
+## Historique
 
-Remplacez `https://votre-domaine-de-prod.example` par l'URL où vous
-hébergerez l'application en production. Pour un test rapide vous pouvez
-mettre `"*"`, mais ne le laissez pas en production.
+La v1 de ce projet était une **SPA TypeScript pure** (Vite + AWS SDK v3 navigateur). Elle satisfaisait le bonus 2 (credentials front-end) mais souffrait de la limitation `ListBuckets` (CORS service-level non configurable côté AWS), donc le bonus 1 n'était que partiel.
 
-### 3. (Optionnel) Bloquer l'accès public
+Cette v2 (Go SSR) est faite pour résister à un audit code/sécurité : tout passe par le backend, ce qui ferme la limitation CORS et permet de raisonner plus simplement sur la surface d'attaque.
 
-Cette application n'a pas besoin que les objets soient publics : tous les
-téléchargements passent par des URL pré-signées. Gardez "Block all public
-access" activé sur le bucket.
-
-## Architecture
-
-```
-src/
-├── main.ts                  Orchestration de l'app
-├── s3-client.ts             Wrapper AWS SDK (list, upload, delete, presign)
-├── storage.ts               Persistance creds + bucket (localStorage / sessionStorage)
-├── style.css                Tous les styles
-└── ui/
-    ├── dom.ts               Helper de création DOM (alternative à innerHTML)
-    ├── credentials-modal.ts Saisie des identifiants AWS
-    ├── bucket-selector.ts   (inline dans main.ts)
-    ├── breadcrumbs.ts       Navigation par préfixe
-    ├── file-list.ts         Tableau des fichiers/dossiers
-    ├── preview-modal.ts     Aperçu images/PDF
-    ├── uploads-panel.ts     Panneau de progression des uploads
-    └── toast.ts             Notifications
-```
-
-## Sécurité
-
-- Les credentials sont stockés dans `localStorage` ou `sessionStorage` du
-  navigateur. Sur une machine partagée, **ne cochez pas "Mémoriser"**.
-- L'application est statique : un attaquant qui obtient les identifiants
-  via XSS aurait les mêmes droits que l'utilisateur. Évitez d'injecter du
-  HTML utilisateur dans l'app — toute construction DOM passe par le helper
-  `el()` qui utilise `textContent` plutôt que `innerHTML`.
-- En production, servez l'app derrière HTTPS et configurez le CORS du
-  bucket pour n'autoriser que votre domaine.
-- Les URL pré-signées expirent par défaut en 5 minutes.
-
-## Limites connues
-
-- **`ListBuckets` non supporté en navigateur**. C'est une limitation AWS S3 :
-  l'API est service-level et ne supporte pas CORS. L'app contourne en demandant
-  le nom du bucket à la connexion (voir `lambda/README.md` pour la tentative
-  de résolution via AWS Lambda + Function URL).
-- L'app reste sur la même région que l'utilisateur ; les buckets dans une
-  région différente fonctionnent grâce au mode "auto" du SDK v3 mais la
-  première requête peut entraîner une redirection.
-- Le listing est limité à 1000 entrées par page. La pagination n'est pas
-  encore implémentée dans l'UI (le SDK retourne `IsTruncated`).
-- Pas de gestion du versioning S3, ACL, tags, ou métadonnées custom.
-
-## Livrable
-
-Le code source est publié sur le dépôt Git indiqué par le formateur.
+L'historique git contient les deux versions.
