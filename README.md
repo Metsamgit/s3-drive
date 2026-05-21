@@ -4,6 +4,13 @@ Interface web type "drive" pour Amazon S3 — SPA TypeScript sans backend.
 Toutes les requêtes S3 sont signées directement dans le navigateur ; vos
 identifiants AWS ne quittent jamais la machine cliente.
 
+## Déploiement live
+
+- **App** : https://13-37-241-252.nip.io
+- **Repo** : https://github.com/Metsamgit/s3-drive
+- Hébergement : Amazon Linux 2023 + nginx sur EC2 t3.micro (eu-west-3),
+  HTTPS via Let's Encrypt + nip.io.
+
 ## Fonctionnalités
 
 - Lister le contenu d'un bucket avec métadonnées (taille, date, type)
@@ -144,6 +151,10 @@ src/
 
 ## Limites connues
 
+- **`ListBuckets` non supporté en navigateur**. C'est une limitation AWS S3 :
+  l'API est service-level et ne supporte pas CORS. L'app contourne en demandant
+  le nom du bucket à la connexion (voir `lambda/README.md` pour la tentative
+  de résolution via AWS Lambda + Function URL).
 - L'app reste sur la même région que l'utilisateur ; les buckets dans une
   région différente fonctionnent grâce au mode "auto" du SDK v3 mais la
   première requête peut entraîner une redirection.
