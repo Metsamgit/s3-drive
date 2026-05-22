@@ -12,9 +12,9 @@ import (
 	"github.com/Metsamgit/s3-drive/internal/validation"
 )
 
-// PostUpload accepts a multipart upload. The body is bound to
-// MaxUploadBytes via http.MaxBytesReader so a hostile client cannot stuff
-// the server with infinite multipart parts.
+// PostUpload reçoit un upload multipart. Le body est borné à
+// MaxUploadBytes via MaxBytesReader pour éviter qu'un client envoie
+// un body infini.
 func (h *Handler) PostUpload(w http.ResponseWriter, r *http.Request) {
 	if !h.verifyCSRF(w, r) {
 		return
@@ -54,9 +54,8 @@ func (h *Handler) PostUpload(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	for _, fh := range files {
-		// Filename in a multipart part is attacker-controlled. Take only
-		// the base name (no path), validate it as an S3 key, and reject
-		// anything weird.
+		// Le filename d'une part multipart est contrôlé par le client.
+		// On garde uniquement le base name et on revalide.
 		base := filepath.Base(fh.Filename)
 		key := prefix + base
 		if _, err := validation.S3Key(key); err != nil {
@@ -83,9 +82,8 @@ func (h *Handler) PostUpload(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/files?prefix="+prefix, http.StatusSeeOther)
 }
 
-// guessContentType picks a content-type from the file extension. We
-// distrust the client-supplied one because a hostile uploader could set
-// `text/html` on a file users then download — risky for old browsers.
+// guessContentType déduit le content-type de l'extension. On n'utilise
+// pas celui fourni par le client (un attaquant pourrait mettre text/html).
 func guessContentType(name, clientCT string) string {
 	if ct := mime.TypeByExtension(filepath.Ext(name)); ct != "" {
 		return ct

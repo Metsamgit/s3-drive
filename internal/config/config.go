@@ -1,8 +1,5 @@
-// Package config loads runtime configuration from environment variables.
-//
-// Everything sensitive lives in env vars. There is no config file.
-// In dev, the session key is auto-generated and logged once with a warning;
-// in production this key must be set via env so sessions survive restarts.
+// Package config charge la config depuis les variables d'environnement.
+// En dev, SESSION_KEY est généré au boot si absent (warning).
 package config
 
 import (
@@ -83,8 +80,8 @@ func loadOrGenerateSessionKey() ([]byte, error) {
 		if _, err := rand.Read(k); err != nil {
 			return nil, fmt.Errorf("generate session key: %w", err)
 		}
-		// Dev-only fallback. Without a stable key sessions reset on restart.
-		slog.Warn("SESSION_KEY not set; generated an ephemeral one. Sessions will not survive a restart.",
+		// Fallback dev: sans clé stable, les sessions sautent au restart.
+		slog.Warn("SESSION_KEY absent, clé éphémère générée. Les sessions ne survivront pas à un restart.",
 			"hint", "export SESSION_KEY="+base64.StdEncoding.EncodeToString(k))
 		return k, nil
 	}

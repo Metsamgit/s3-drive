@@ -9,7 +9,7 @@ import (
 	"github.com/Metsamgit/s3-drive/internal/validation"
 )
 
-// PostFolder creates a zero-byte "folder" object.
+// PostFolder crée un objet "dossier" vide.
 func (h *Handler) PostFolder(w http.ResponseWriter, r *http.Request) {
 	if !h.verifyCSRF(w, r) {
 		return
@@ -30,8 +30,7 @@ func (h *Handler) PostFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
-	// Don't let users smuggle slashes through the folder name — they
-	// could create arbitrary nesting and confuse the breadcrumb code.
+	// Pas de slash dans le nom: éviterait de créer un nesting arbitraire.
 	if name == "" || strings.ContainsAny(name, "/\\") {
 		http.Error(w, "nom de dossier invalide", http.StatusBadRequest)
 		return

@@ -8,9 +8,8 @@ import (
 	"io/fs"
 )
 
-// templates loads the HTML templates from an embedded filesystem.
-// Embedding means the binary is self-contained — no template files to
-// ship next to it, no template paths to escape to.
+// templates charge les vues HTML depuis un FS embarqué. Le binaire est
+// auto-suffisant, pas de fichiers de template à embarquer à part.
 type templates struct {
 	login    *template.Template
 	files    *template.Template

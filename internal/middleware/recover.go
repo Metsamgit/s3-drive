@@ -6,8 +6,8 @@ import (
 	"runtime/debug"
 )
 
-// Recover catches any panic raised by downstream handlers, logs the trace,
-// and returns a generic 500. The stack never leaves the server.
+// Recover attrape les panics des handlers et renvoie un 500 générique.
+// La stack reste dans les logs serveur.
 func Recover(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {

@@ -1,8 +1,4 @@
-// s3-drive is a small web app for managing files in an Amazon S3 bucket.
-//
-// It is intentionally a server-rendered Go app (no SPA, no JS framework)
-// so the surface accessible to an attacker is small and the code is
-// straightforward to audit. See README.md for the threat model.
+// s3-drive: petite app web pour gérer des fichiers dans un bucket S3.
 package main
 
 import (
@@ -55,10 +51,9 @@ func main() {
 
 	mux := h.Routes(static)
 
-	// Two limiters with different budgets. /login gets the strict one to
-	// make brute-forcing AWS credentials painful.
+	// /login: limite stricte pour ralentir le brute force.
 	authLimit := middleware.NewIPLimiter(0.1, 5, 30*time.Minute) // ~6/min
-	apiLimit := middleware.NewIPLimiter(2.0, 30, 30*time.Minute) // 2/s burst 30
+	apiLimit := middleware.NewIPLimiter(2.0, 30, 30*time.Minute) // 2/s, burst 30
 
 	root := http.NewServeMux()
 	root.Handle("/login", authLimit.Middleware(mux))
@@ -76,13 +71,13 @@ func main() {
 		Addr:              cfg.BindAddr,
 		Handler:           chain,
 		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       5 * time.Minute, // long uploads
+		ReadTimeout:       5 * time.Minute, // uploads longs
 		WriteTimeout:      5 * time.Minute,
 		IdleTimeout:       2 * time.Minute,
 		MaxHeaderBytes:    1 << 16, // 64 KB
 	}
 
-	// Graceful shutdown gives in-flight uploads/downloads time to finish.
+	// Shutdown propre: laisse les uploads/downloads en cours finir.
 	go func() {
 		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)

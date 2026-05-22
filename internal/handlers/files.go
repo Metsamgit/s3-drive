@@ -35,8 +35,7 @@ type filesData struct {
 	Error   string
 	CSRF    string
 
-	// Bonus 1: if ListBuckets succeeded at probe time, the dropdown is
-	// populated. If the IAM lacks s3:ListAllMyBuckets we just hide it.
+	// Bonus 1: dropdown affiché si ListBuckets a marché.
 	CanList bool
 	Buckets []awsclient.Bucket
 }
@@ -59,7 +58,7 @@ func (h *Handler) GetFiles(w http.ResponseWriter, r *http.Request) {
 		CSRF:   sess.CSRFToken,
 	}
 
-	// Best-effort list of accessible buckets; tolerate AccessDenied.
+	// Best effort: si le user n'a pas ListAllMyBuckets, on cache le dropdown.
 	cli := h.s3(r)
 	listCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
@@ -84,8 +83,7 @@ func (h *Handler) GetFiles(w http.ResponseWriter, r *http.Request) {
 	_ = h.tmpl.renderFiles(w, data)
 }
 
-// GetFilesList serves the table-only HTML for HTMX swaps (e.g. after a
-// delete that triggers `hx-target="#file-list"`).
+// GetFilesList renvoie juste le tableau (pour les swaps HTMX).
 func (h *Handler) GetFilesList(w http.ResponseWriter, r *http.Request) {
 	sess := sessionFrom(r.Context())
 	if sess.Bucket == "" {

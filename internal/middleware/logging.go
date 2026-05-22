@@ -17,10 +17,9 @@ func (s *statusRecorder) WriteHeader(code int) {
 	s.ResponseWriter.WriteHeader(code)
 }
 
-// Logging emits a structured access log entry per request.
-// We deliberately do NOT log the body, query string, or any cookie. The
-// path + method + status + duration is enough to spot anomalies without
-// leaking sensitive data into logs.
+// Logging écrit une ligne par requête. Pas de body, pas de query, pas
+// de cookie — juste de quoi suivre l'activité sans logger de données
+// sensibles.
 func Logging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -35,8 +34,7 @@ func Logging(next http.Handler) http.Handler {
 	})
 }
 
-// clientIP returns the best-effort client IP. We don't trust XFF unless
-// we're behind a proxy we control; the caller sets that flag.
+// clientIP renvoie l'IP du client (best effort).
 func clientIP(r *http.Request) string {
 	if r.RemoteAddr != "" {
 		return r.RemoteAddr

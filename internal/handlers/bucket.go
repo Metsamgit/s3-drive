@@ -8,8 +8,7 @@ import (
 	"github.com/Metsamgit/s3-drive/internal/validation"
 )
 
-// PostBucket switches the active bucket on the session after checking
-// that the credentials can access it.
+// PostBucket change le bucket courant après check d'accès.
 func (h *Handler) PostBucket(w http.ResponseWriter, r *http.Request) {
 	if !h.verifyCSRF(w, r) {
 		return

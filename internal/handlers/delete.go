@@ -37,8 +37,7 @@ func (h *Handler) PostDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// HTMX vs normal: HTMX expects the new partial back, browsers want a
-	// redirect to refresh the page.
+	// HTMX attend la partial; un navigateur classique veut un redirect.
 	if r.Header.Get("HX-Request") == "true" {
 		prefix, _ := validation.Prefix(r.FormValue("prefix"))
 		res, err := h.s3(r).ListPrefix(ctx, sess.Bucket, prefix)

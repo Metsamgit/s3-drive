@@ -1,6 +1,4 @@
-// Package awsclient wraps the AWS SDK with the bare set of operations the
-// app needs. Every call takes a context so request lifetimes can be bound
-// to HTTP request timeouts.
+// Package awsclient enveloppe le SDK AWS S3 avec juste ce qu'on utilise.
 package awsclient
 
 import (
@@ -25,8 +23,7 @@ type Client struct {
 	uploader *manager.Uploader
 }
 
-// New builds an S3 client from session credentials. The HTTP client is the
-// SDK default; we rely on its built-in timeouts and retries.
+// New construit un client S3 à partir des credentials de session.
 func New(c auth.Creds) *Client {
 	provider := awscreds.NewStaticCredentialsProvider(
 		c.AccessKeyID, c.SecretAccessKey, c.SessionToken,
@@ -73,8 +70,7 @@ type ListResult struct {
 	Files   []Object
 }
 
-// ListPrefix lists immediate children of `prefix` in bucket. Folders are
-// returned as their full S3 prefix (ending in "/").
+// ListPrefix liste les enfants directs d'un préfixe (dossiers + fichiers).
 func (c *Client) ListPrefix(ctx context.Context, bucket, prefix string) (*ListResult, error) {
 	out, err := c.s3.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 		Bucket:    aws.String(bucket),
@@ -107,8 +103,7 @@ func (c *Client) ListPrefix(ctx context.Context, bucket, prefix string) (*ListRe
 	return r, nil
 }
 
-// Upload streams a reader to S3. The manager auto-switches to multipart
-// for parts >= 5 MB.
+// Upload streame un reader vers S3 (multipart auto pour les gros fichiers).
 func (c *Client) Upload(ctx context.Context, bucket, key, contentType string, body io.Reader) error {
 	_, err := c.uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(bucket),
@@ -119,11 +114,9 @@ func (c *Client) Upload(ctx context.Context, bucket, key, contentType string, bo
 	return wrap(err)
 }
 
-// DownloadStream returns the object body. Callers must close it.
-//
-// We chose to stream-proxy rather than hand out a presigned URL because
-// the latter would expose the bucket hostname (and indirectly the AWS
-// account) to the user, and we don't want to.
+// DownloadStream renvoie le body de l'objet. À fermer par l'appelant.
+// On streame via le serveur plutôt que de renvoyer une URL pré-signée,
+// pour ne pas exposer le hostname du bucket.
 func (c *Client) DownloadStream(ctx context.Context, bucket, key string) (io.ReadCloser, *DownloadMeta, error) {
 	out, err := c.s3.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
@@ -155,8 +148,8 @@ func (c *Client) DeleteObject(ctx context.Context, bucket, key string) error {
 	return wrap(err)
 }
 
-// CreateEmptyFolder creates a zero-byte object whose key ends with "/".
-// S3 has no real folders; this is the convention every console uses.
+// CreateEmptyFolder crée un objet vide dont la clé finit par "/".
+// S3 n'a pas de vrais dossiers, c'est la convention.
 func (c *Client) CreateEmptyFolder(ctx context.Context, bucket, key string) error {
 	_, err := c.s3.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(bucket),
@@ -165,15 +158,13 @@ func (c *Client) CreateEmptyFolder(ctx context.Context, bucket, key string) erro
 	return wrap(err)
 }
 
-// HeadBucket returns nil if the credentials can access the bucket.
-// Useful at login to fail fast on a wrong bucket name or missing perms.
+// HeadBucket renvoie nil si les credentials peuvent accéder au bucket.
 func (c *Client) HeadBucket(ctx context.Context, bucket string) error {
 	_, err := c.s3.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucket)})
 	return wrap(err)
 }
 
-// Err is the typed error surface for handlers. We map AWS-internal types
-// to a small set so the handler layer doesn't import the SDK directly.
+// Err est l'erreur renvoyée aux handlers (mappée depuis les erreurs SDK).
 type Err struct {
 	Code    string
 	Message string

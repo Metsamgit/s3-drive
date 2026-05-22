@@ -1,5 +1,4 @@
-// Package middleware contains HTTP middleware: security headers, panic
-// recovery, structured logging, rate limiting.
+// Package middleware: headers de sécurité, recover, logging, rate limit.
 package middleware
 
 import (
@@ -7,12 +6,8 @@ import (
 	"strings"
 )
 
-// SecurityHeaders sets headers that reduce the impact of XSS, clickjacking,
-// and MIME confusion attacks. The CSP is strict: 'self' only, no inline
-// scripts, no inline styles, no third-party origins.
-//
-// HSTS is conditional on the request being seen as HTTPS, otherwise a
-// browser on plain HTTP would refuse to upgrade.
+// SecurityHeaders pose les headers de sécurité (CSP strict, HSTS, etc).
+// HSTS est conditionné à HTTPS pour ne pas casser un dev local en HTTP.
 func SecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
@@ -39,14 +34,11 @@ func SecurityHeaders(next http.Handler) http.Handler {
 			h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
 
-		// Defense-in-depth: even if a typo lets a route handler set the
-		// wrong content-type, the browser will still refuse to sniff.
 		next.ServeHTTP(w, r)
 	})
 }
 
-// NoCache turns off all caching for HTML responses. Static assets are
-// cached separately via the file server.
+// NoCache désactive le cache pour les réponses HTML.
 func NoCache(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
@@ -58,8 +50,6 @@ func isHTTPS(r *http.Request) bool {
 	if r.TLS != nil {
 		return true
 	}
-	// nginx in front sets this header; we only trust it if explicitly told
-	// to via config.BehindProxy. The check is done by the caller wiring
-	// middleware order.
+	// nginx en amont peut poser ce header.
 	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
 }

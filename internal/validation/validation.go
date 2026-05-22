@@ -1,6 +1,5 @@
-// Package validation centralizes input sanitization for any value that ends
-// up in an AWS API call or a filesystem path. Keeping it in one file makes
-// it easy to audit.
+// Package validation: valide les inputs qui finissent en appel AWS ou en
+// clé S3. Tout est centralisé pour pouvoir relire ça rapidement.
 package validation
 
 import (
@@ -9,19 +8,14 @@ import (
 	"strings"
 )
 
-// bucketNameRe enforces a conservative subset of S3 bucket naming rules.
-// AWS allows dots but we forbid them: dot-buckets disable TLS hostname
-// verification on the virtual-hosted-style endpoint, and we have no use
-// for them.
+// bucketNameRe: sous-ensemble des règles S3. On exclut les points (les
+// bucket "x.y.z" cassent la vérification TLS du host virtual-hosted).
 var bucketNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9\-]{1,61}[a-z0-9]$`)
 
-// keyRe restricts object keys to a printable ASCII subset. S3 accepts a
-// wider range but every other character (newlines, control bytes, NUL) has
-// only ever caused trouble — none of our users will name files with them.
+// keyRe: ASCII imprimable seulement. Suffisant pour des noms de fichiers.
 var keyRe = regexp.MustCompile(`^[a-zA-Z0-9._/\- ()\[\]+@#,!=]+$`)
 
-// regionRe matches the canonical region format. We additionally check
-// against a whitelist below.
+// regionRe: format canonique des régions AWS. Doublé d'une whitelist.
 var regionRe = regexp.MustCompile(`^[a-z]{2,4}-[a-z]+-[1-9][0-9]?$`)
 
 var knownRegions = map[string]struct{}{
@@ -38,7 +32,7 @@ var (
 	ErrRegionInvalid = errors.New("région AWS inconnue")
 )
 
-// BucketName returns the cleaned bucket name or an error.
+// BucketName valide un nom de bucket.
 func BucketName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if !bucketNameRe.MatchString(name) {
@@ -47,11 +41,8 @@ func BucketName(name string) (string, error) {
 	return name, nil
 }
 
-// S3Key validates and cleans an object key.
-//
-// We reject any path traversal (`..`), leading slash, double slash, and
-// anything outside the printable ASCII charset. Length is capped at 1024
-// (S3's documented hard limit).
+// S3Key valide une clé S3. Rejette les `..`, les slashs en tête ou
+// doublés, tout ce qui sort de l'ASCII imprimable. Max 1024 caractères.
 func S3Key(key string) (string, error) {
 	key = strings.TrimSpace(key)
 	if key == "" || len(key) > 1024 {
@@ -71,8 +62,7 @@ func S3Key(key string) (string, error) {
 	return key, nil
 }
 
-// Region returns the cleaned region or an error if it doesn't match either
-// the canonical pattern or our whitelist.
+// Region valide une région AWS (forme + whitelist).
 func Region(region string) (string, error) {
 	region = strings.TrimSpace(region)
 	if !regionRe.MatchString(region) {
@@ -84,8 +74,8 @@ func Region(region string) (string, error) {
 	return region, nil
 }
 
-// AWSAccessKey checks the shape of an Access Key ID. We don't require it
-// to start with "AKIA" because STS short-term credentials use "ASIA" etc.
+// AWSAccessKey vérifie la forme d'un Access Key ID. Pas de check sur
+// "AKIA" car les credentials STS commencent par "ASIA".
 func AWSAccessKey(s string) bool {
 	s = strings.TrimSpace(s)
 	if len(s) < 16 || len(s) > 128 {
@@ -99,8 +89,7 @@ func AWSAccessKey(s string) bool {
 	return true
 }
 
-// AWSSecretKey checks the shape of a Secret Access Key — base64-ish, 40 chars.
-// We avoid leaking even the length in error messages elsewhere.
+// AWSSecretKey vérifie la forme d'un Secret Access Key (base64-ish).
 func AWSSecretKey(s string) bool {
 	s = strings.TrimSpace(s)
 	if len(s) < 16 || len(s) > 256 {
@@ -119,8 +108,7 @@ func AWSSecretKey(s string) bool {
 	return true
 }
 
-// Prefix validates the "folder" portion of a path used in list operations.
-// Empty prefix is allowed (means root).
+// Prefix valide la partie "dossier" d'une clé. Vide = racine.
 func Prefix(p string) (string, error) {
 	if p == "" {
 		return "", nil

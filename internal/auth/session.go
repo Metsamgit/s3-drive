@@ -1,8 +1,6 @@
-// Package auth handles session lifecycle and CSRF tokens.
-//
-// Sessions live only in memory. AWS credentials are encrypted at rest in the
-// session map with AES-256-GCM, so a heap dump alone doesn't yield them. The
-// key is process-wide (config.SessionKey) and never touches disk.
+// Package auth gère les sessions et les jetons CSRF.
+// Les sessions sont en mémoire. Les credentials AWS sont chiffrés en
+// AES-GCM avec une clé venant de l'env (SESSION_KEY).
 package auth
 
 import (
@@ -19,9 +17,7 @@ import (
 	"time"
 )
 
-// Creds holds the AWS credentials a user supplied at login.
-// They are encrypted before being put on the session map and decrypted
-// only when about to be used to build an S3 client.
+// Creds représente les identifiants AWS saisis au login.
 type Creds struct {
 	AccessKeyID     string `json:"a"`
 	SecretAccessKey string `json:"s"`
@@ -29,7 +25,7 @@ type Creds struct {
 	SessionToken    string `json:"t,omitempty"`
 }
 
-// Session is what the handler layer sees once a request is authenticated.
+// Session est l'objet que voient les handlers une fois la requête authentifiée.
 type Session struct {
 	ID         string
 	Creds      Creds
@@ -80,7 +76,7 @@ func NewStore(key []byte, idleTTL, absTTL time.Duration) (*Store, error) {
 	return s, nil
 }
 
-// Create persists a new session and returns the session ID (an opaque token).
+// Create crée une nouvelle session et renvoie l'ID (opaque).
 func (s *Store) Create(creds Creds) (*Session, error) {
 	enc, err := s.encrypt(creds)
 	if err != nil {
@@ -115,8 +111,7 @@ func (s *Store) Create(creds Creds) (*Session, error) {
 	}, nil
 }
 
-// Get returns the session for an ID, decrypting credentials. Returns nil if
-// the session is missing or expired.
+// Get renvoie la session pour un ID (nil si expirée ou inexistante).
 func (s *Store) Get(id string) (*Session, bool) {
 	if id == "" {
 		return nil, false
@@ -134,7 +129,6 @@ func (s *Store) Get(id string) (*Session, bool) {
 	}
 	creds, err := s.decrypt(es.encCreds)
 	if err != nil {
-		// Cipher failure means key rotation or corruption — drop the session.
 		s.Destroy(id)
 		return nil, false
 	}
@@ -148,7 +142,7 @@ func (s *Store) Get(id string) (*Session, bool) {
 	}, true
 }
 
-// Touch updates the last-active time. Called on every authenticated request.
+// Touch met à jour la date de dernière activité.
 func (s *Store) Touch(id string) {
 	s.mu.Lock()
 	if es, ok := s.sessions[id]; ok {
@@ -157,7 +151,7 @@ func (s *Store) Touch(id string) {
 	s.mu.Unlock()
 }
 
-// SetBucket persists the currently selected bucket on the session.
+// SetBucket mémorise le bucket courant sur la session.
 func (s *Store) SetBucket(id, bucket string) {
 	s.mu.Lock()
 	if es, ok := s.sessions[id]; ok {
@@ -167,15 +161,14 @@ func (s *Store) SetBucket(id, bucket string) {
 	s.mu.Unlock()
 }
 
-// Destroy removes a session.
+// Destroy supprime une session.
 func (s *Store) Destroy(id string) {
 	s.mu.Lock()
 	delete(s.sessions, id)
 	s.mu.Unlock()
 }
 
-// VerifyCSRF returns true if the provided token matches the session's, in
-// constant time.
+// VerifyCSRF compare le token reçu et celui de la session en constant-time.
 func (s *Store) VerifyCSRF(id, token string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -241,12 +234,10 @@ func randomToken(n int) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-// NewRandomToken exposes the internal random helper for use by callers
-// that need an opaque token (e.g. pre-login CSRF). 32 bytes is plenty.
+// NewRandomToken expose le helper aléatoire (utilisé pour le CSRF pré-login).
 func NewRandomToken(n int) (string, error) { return randomToken(n) }
 
-// SetCookie writes the session cookie with strict security attributes.
-// `secure` should be true whenever the app is behind HTTPS.
+// SetCookie pose le cookie de session avec les attributs stricts.
 func SetCookie(w http.ResponseWriter, id string, secure bool, maxAge time.Duration) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     CookieName,
@@ -259,7 +250,7 @@ func SetCookie(w http.ResponseWriter, id string, secure bool, maxAge time.Durati
 	})
 }
 
-// ClearCookie expires the session cookie on the client.
+// ClearCookie efface le cookie côté client.
 func ClearCookie(w http.ResponseWriter, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     CookieName,

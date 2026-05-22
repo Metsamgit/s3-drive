@@ -1,4 +1,4 @@
-// Package handlers wires HTTP routes for the S3 Drive backend.
+// Package handlers: routes HTTP de l'app.
 package handlers
 
 import (
@@ -27,7 +27,7 @@ func New(cfg *config.Config, store *auth.Store, assets embed.FS) (*Handler, erro
 	return &Handler{Cfg: cfg, Store: store, tmpl: tmpl}, nil
 }
 
-// ctxKey is a private type for context keys to avoid collisions across pkgs.
+// ctxKey évite les collisions de clés de context entre packages.
 type ctxKey int
 
 const (
@@ -39,7 +39,7 @@ func sessionFrom(ctx context.Context) *auth.Session {
 	return s
 }
 
-// requireSession is a middleware that 302s to /login if no valid session.
+// requireSession redirige vers /login si pas de session valide.
 func (h *Handler) requireSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie(auth.CookieName)
@@ -59,8 +59,7 @@ func (h *Handler) requireSession(next http.Handler) http.Handler {
 	})
 }
 
-// verifyCSRF returns false and writes 403 if the CSRF token is missing or
-// doesn't match the session's. Called on every state-changing handler.
+// verifyCSRF renvoie false (+403) si le token est absent ou faux.
 func (h *Handler) verifyCSRF(w http.ResponseWriter, r *http.Request) bool {
 	sess := sessionFrom(r.Context())
 	if sess == nil {
@@ -75,8 +74,7 @@ func (h *Handler) verifyCSRF(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
-// secure reports whether the cookie should have the Secure flag.
-// True for direct TLS or when behind a trusted proxy forwarding HTTPS.
+// secure indique si on doit poser le flag Secure sur les cookies.
 func (h *Handler) secure(r *http.Request) bool {
 	if r.TLS != nil {
 		return true
@@ -87,9 +85,8 @@ func (h *Handler) secure(r *http.Request) bool {
 	return false
 }
 
-// s3 returns a fresh AWS client built from the request's session creds.
-// We build per request to keep credential exposure as short-lived as
-// possible.
+// s3 renvoie un client AWS construit à partir des credentials de session.
+// Construit par requête pour limiter la durée de vie des creds en mémoire.
 func (h *Handler) s3(r *http.Request) *awsclient.Client {
 	sess := sessionFrom(r.Context())
 	if sess == nil {
@@ -98,8 +95,8 @@ func (h *Handler) s3(r *http.Request) *awsclient.Client {
 	return awsclient.New(sess.Creds)
 }
 
-// Routes wires every endpoint into a chi router. The unauthenticated set
-// is small on purpose (login + static) so it's easy to reason about.
+// Routes monte les routes dans chi. Le set non-authentifié est volontairement
+// court (login + static).
 func (h *Handler) Routes(static http.Handler) chi.Router {
 	r := chi.NewRouter()
 

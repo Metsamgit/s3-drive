@@ -12,11 +12,9 @@ import (
 	"github.com/Metsamgit/s3-drive/internal/validation"
 )
 
-// GetDownload streams the requested object back through the server. This
-// is intentionally more conservative than emitting a presigned URL: it
-// keeps the bucket hostname (and indirectly the AWS account) hidden, and
-// it lets us force a Content-Disposition: attachment so a HTML file from
-// a user's bucket can never be rendered as if it lived on our origin.
+// GetDownload streame l'objet via le serveur (pas d'URL pré-signée).
+// On force Content-Disposition: attachment pour qu'un .html dans le
+// bucket ne soit jamais rendu inline sous notre origine.
 func (h *Handler) GetDownload(w http.ResponseWriter, r *http.Request) {
 	sess := sessionFrom(r.Context())
 	if sess.Bucket == "" {
@@ -40,9 +38,7 @@ func (h *Handler) GetDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer body.Close()
 
-	// Force download: never render directly in the browser, even for
-	// images or PDFs. The CSP would block most active content anyway,
-	// but a forced attachment is one less thing to worry about.
+	// Force le download: rien n'est jamais rendu inline.
 	w.Header().Set("Content-Disposition", `attachment; filename="`+sanitizeFilename(path.Base(key))+`"`)
 	w.Header().Set("Content-Type", "application/octet-stream")
 	if meta.ContentLength > 0 {
@@ -55,9 +51,8 @@ func (h *Handler) GetDownload(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// sanitizeFilename strips any quote or control char from the filename
-// before putting it into Content-Disposition. Without this an attacker
-// who controlled an object name could inject extra header tokens.
+// sanitizeFilename retire les guillemets et bytes de contrôle pour
+// éviter d'injecter des tokens supplémentaires dans Content-Disposition.
 func sanitizeFilename(s string) string {
 	out := make([]byte, 0, len(s))
 	for i := 0; i < len(s); i++ {

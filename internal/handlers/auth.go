@@ -27,15 +27,14 @@ type loginData struct {
 }
 
 func (h *Handler) GetLogin(w http.ResponseWriter, r *http.Request) {
-	// Already-logged-in users skip the form.
+	// Déjà connecté: skip le form.
 	if c, err := r.Cookie(auth.CookieName); err == nil {
 		if _, ok := h.Store.Get(c.Value); ok {
 			http.Redirect(w, r, "/files", http.StatusSeeOther)
 			return
 		}
 	}
-	// We render with a fresh CSRF that we'll bind to the new session
-	// created on POST. This means the login form has a one-shot token.
+	// CSRF pré-login: token jetable, vérifié au POST.
 	csrf := newPreLoginCSRF()
 	setPreLoginCSRFCookie(w, csrf, h.secure(r))
 
@@ -54,9 +53,7 @@ func (h *Handler) PostLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Pre-login CSRF: the token submitted must match the cookie we set
-	// on the GET. Defends against an attacker submitting a login form
-	// from another origin.
+	// Le token POSTé doit matcher le cookie pré-login posé sur le GET.
 	cookie, err := r.Cookie(preLoginCookieName)
 	if err != nil || cookie.Value == "" || cookie.Value != r.FormValue("csrf") {
 		http.Error(w, "jeton CSRF invalide", http.StatusForbidden)
@@ -80,11 +77,8 @@ func (h *Handler) PostLogin(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Use a single generic message for everything credentials-related so
-	// an attacker can't tell from the error whether their key/secret has
-	// the right shape, the wrong region, or simply doesn't exist on AWS.
-	// The bucket message stays distinct because it only fires *after*
-	// the credentials are known to be valid — no useful signal to leak.
+	// Message générique pour tout ce qui touche aux credentials, pour ne
+	// pas révéler si la forme est bonne ou si c'est AWS qui rejette.
 	const genericAuthErr = "Identifiants, région ou compte refusés."
 
 	if !validation.AWSAccessKey(ak) || !validation.AWSSecretKey(sk) {
@@ -111,9 +105,7 @@ func (h *Handler) PostLogin(w http.ResponseWriter, r *http.Request) {
 		Region:          cleanRegion,
 	}
 
-	// Probe AWS to validate creds before creating a session. We hit
-	// HeadBucket if a bucket was provided, otherwise rely on ListBuckets
-	// — both fail loudly on bad creds.
+	// Vérifie les creds côté AWS avant de créer la session.
 	probeCtx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
 	cli := awsclient.New(creds)
@@ -162,10 +154,9 @@ func (h *Handler) GetRoot(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/files", http.StatusSeeOther)
 }
 
-// --- pre-login CSRF helpers ---------------------------------------------
+// --- CSRF pré-login ---
 
 func newPreLoginCSRF() string {
-	// Reuse the same source of entropy as session IDs.
 	tok, _ := auth.NewRandomToken(32)
 	return tok
 }
@@ -178,7 +169,7 @@ func setPreLoginCSRFCookie(w http.ResponseWriter, val string, secure bool) {
 		HttpOnly: true,
 		Secure:   secure,
 		SameSite: http.SameSiteStrictMode,
-		MaxAge:   600, // 10 min: just long enough to fill the form
+		MaxAge:   600, // 10 min
 	})
 }
 

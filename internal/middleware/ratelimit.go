@@ -9,8 +9,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// IPLimiter is a per-IP token bucket. Entries are GC'd after a quiet
-// period so the map doesn't grow unbounded over time.
+// IPLimiter est un token bucket par IP. Les entrées inactives sont GC.
 type IPLimiter struct {
 	mu       sync.Mutex
 	clients  map[string]*ipEntry
@@ -24,8 +23,7 @@ type ipEntry struct {
 	lastSeen time.Time
 }
 
-// NewIPLimiter caps a single IP to `rps` requests/second with a `burst`
-// allowance. After `idleKick` of inactivity an entry is removed.
+// NewIPLimiter: rps req/s par IP avec un burst donné, GC après idleKick.
 func NewIPLimiter(rps float64, burst int, idleKick time.Duration) *IPLimiter {
 	il := &IPLimiter{
 		clients:  make(map[string]*ipEntry),
@@ -65,7 +63,7 @@ func (il *IPLimiter) gcLoop() {
 	}
 }
 
-// Middleware returns an HTTP middleware that 429s anyone over the limit.
+// Middleware renvoie 429 quand l'IP dépasse le quota.
 func (il *IPLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host, _, err := net.SplitHostPort(r.RemoteAddr)
